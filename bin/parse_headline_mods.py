@@ -242,8 +242,9 @@ if __name__ == '__main__':
     log_fname = sys.argv[1]
 
     infos = []
-    with open(log_fname) as f:
+    with gzip.open(log_fname) as f:
         for line in f:
+            line = line.decode('utf-8')
             content = line.split(' | ')[-1].strip()
             if content.startswith(info_prefix):
                 info = read_headline_info(f, content)

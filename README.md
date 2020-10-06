@@ -25,16 +25,10 @@ To run the experiments below, download the data (instructions above). Our experi
 
 #### News headlines
 
-Headline POS changes can be evaluated with the command
+Headline part-of-speech changes and WordNet changes can be evaluated with the command
 ```bash
-python bin/parse_headline_mods.py results/headlines/semantics_1024.log \
+python bin/parse_headline_mods.py results/headlines/semantics_1024.log.gz \
     > headline_pos.log 2>&1
-```
-
-Headline WordNet changes can be evaluated with the command
-```bash
-python bin/parse_semantic_headlines.py results/headlines/semantics_1024.log \
-    > headline_wordnet.log 2>&1
 ```
 
 Generating headline changes can be done with the command

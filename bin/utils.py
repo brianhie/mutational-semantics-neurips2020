@@ -3,6 +3,7 @@ from collections import Counter
 import datetime
 from dateutil.parser import parse as dparse
 import errno
+import gzip
 import math
 import matplotlib.pyplot as plt
 import numpy as np
