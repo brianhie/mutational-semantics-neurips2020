@@ -1,6 +1,6 @@
 # Learning mutational semantics
 
-This repository contains the analysis code, links to the data, and pretrained models for the paper ["Learning mutational semantics"]{https://proceedings.neurips.cc//paper_files/paper/2020/hash/6754e06e46dfa419d5afe3c9781cecad-Abstract.html} by Brian Hie, Ellen Zhong, Bryan Bryson, and Bonnie Berger, which will appear at NeurIPS 2020.
+This repository contains the analysis code, links to the data, and pretrained models for the paper ["Learning mutational semantics"](https://proceedings.neurips.cc//paper_files/paper/2020/hash/6754e06e46dfa419d5afe3c9781cecad-Abstract.html) by Brian Hie, Ellen Zhong, Bryan Bryson, and Bonnie Berger, which will appear at NeurIPS 2020.
 
 For a more biologically-oriented follow-up work, including analysis of SARS-CoV-2 viral sequences, see our paper ["Learning the language of viral evolution and escape"](https://www.biorxiv.org/content/10.1101/2020.07.08.193946v1).
 
