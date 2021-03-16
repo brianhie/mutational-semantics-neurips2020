@@ -32,12 +32,12 @@ class LanguageModel(object):
             X_cat, lengths, self.seq_len_, self.vocab_size_, self.verbose_
         )
 
-        opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
-                   amsgrad=False)
-        self.model_.compile(
-            loss='sparse_categorical_crossentropy', optimizer=opt,
-            metrics=[ 'accuracy' ]
-        )
+        # opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
+        #            amsgrad=False)
+        # self.model_.compile(
+        #     loss='sparse_categorical_crossentropy', optimizer=opt,
+        #     metrics=[ 'accuracy' ]
+        # )
 
         dirname = '{}/checkpoints/{}'.format(self.cache_dir_,
                                                         self.model_name_)
@@ -151,25 +151,34 @@ class DNNLanguageModel(LanguageModel):
     ):
         super().__init__(seed=seed,)
 
-        input_pre = Input(shape=(seq_len - 1,))
-        input_post = Input(shape=(seq_len - 1,))
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        print('Number of devices: {}'.format(mirrored_strategy.num_replicas_in_sync))
+        with mirrored_strategy.scope():
+            input_pre = Input(shape=(seq_len - 1,))
+            input_post = Input(shape=(seq_len - 1,))
 
-        embed = Embedding(vocab_size + 1, embedding_dim,
-                          input_length=seq_len - 1)
-        x_pre = Reshape((embedding_dim * (seq_len - 1),))(embed(input_pre))
-        x_post = Reshape((embedding_dim * (seq_len - 1),))(embed(input_post))
+            embed = Embedding(vocab_size + 1, embedding_dim,
+                              input_length=seq_len - 1)
+            x_pre = Reshape((embedding_dim * (seq_len - 1),))(embed(input_pre))
+            x_post = Reshape((embedding_dim * (seq_len - 1),))(embed(input_post))
 
-        for _ in range(n_hidden):
-            dense = Dense(hidden_dim, activation='relu')
-            x_pre = dense(x_pre)
-            x_post = dense(x_post)
+            for _ in range(n_hidden):
+                dense = Dense(hidden_dim, activation='relu')
+                x_pre = dense(x_pre)
+                x_post = dense(x_post)
 
-        x = concatenate([ x_pre, x_post ], name='embed_layer')
+            x = concatenate([ x_pre, x_post ], name='embed_layer')
 
-        output = Dense(vocab_size + 1, activation='softmax')(x)
+            output = Dense(vocab_size + 1, activation='softmax')(x)
 
-        self.model_ = Model(inputs=[ input_pre, input_post ],
-                            outputs=output)
+            self.model_ = Model(inputs=[ input_pre, input_post ],
+                                outputs=output)
+            opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
+                       amsgrad=False)
+            self.model_.compile(
+                loss='sparse_categorical_crossentropy', optimizer=opt,
+                metrics=['accuracy']
+            )
 
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
@@ -247,19 +256,28 @@ class LSTMLanguageModel(LanguageModel):
         policy = mixed_precision.Policy('mixed_float16')
         mixed_precision.set_policy(policy)
 
-        model = Sequential()
-        model.add(Embedding(vocab_size + 1, embedding_dim,
-                            input_length=seq_len - 1))
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        print('Number of devices: {}'.format(mirrored_strategy.num_replicas_in_sync))
+        with mirrored_strategy.scope():
+            model = Sequential()
+            model.add(Embedding(vocab_size + 1, embedding_dim,
+                                input_length=seq_len - 1))
 
-        for _ in range(n_hidden - 1):
-            model.add(LSTM(hidden_dim, return_sequences=True))
-        model.add(LSTM(hidden_dim, name='embed_layer'))
+            for _ in range(n_hidden - 1):
+                model.add(LSTM(hidden_dim, return_sequences=True))
+            model.add(LSTM(hidden_dim, name='embed_layer'))
 
-        model.add(Dense(dff, activation='relu'))
-        model.add(Dense(vocab_size + 1))
-        model.add(Activation('softmax', dtype='float32'))
+            model.add(Dense(dff, activation='relu'))
+            model.add(Dense(vocab_size + 1))
+            model.add(Activation('softmax', dtype='float32'))
 
-        self.model_ = model
+            self.model_ = model
+            opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
+                       amsgrad=False)
+            self.model_.compile(
+                loss='sparse_categorical_crossentropy', optimizer=opt,
+                metrics=['accuracy']
+            )
 
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
@@ -321,32 +339,41 @@ class BiLSTMLanguageModel(LanguageModel):
         policy = mixed_precision.Policy('mixed_float16')
         mixed_precision.set_policy(policy)
 
-        input_pre = Input(shape=(seq_len - 1,))
-        input_post = Input(shape=(seq_len - 1,))
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        print('Number of devices: {}'.format(mirrored_strategy.num_replicas_in_sync))
+        with mirrored_strategy.scope():
 
-        embed = Embedding(vocab_size + 1, embedding_dim,
-                          input_length=seq_len - 1)
-        x_pre = embed(input_pre)
-        x_post = embed(input_post)
+            input_pre = Input(shape=(seq_len - 1,))
+            input_post = Input(shape=(seq_len - 1,))
 
-        for _ in range(n_hidden - 1):
-            lstm = LSTM(hidden_dim, return_sequences=True)
+            embed = Embedding(vocab_size + 1, embedding_dim,
+                              input_length=seq_len - 1)
+            x_pre = embed(input_pre)
+            x_post = embed(input_post)
+
+            for _ in range(n_hidden - 1):
+                lstm = LSTM(hidden_dim, return_sequences=True)
+                x_pre = lstm(x_pre)
+                x_post = lstm(x_post)
+            lstm = LSTM(hidden_dim)
             x_pre = lstm(x_pre)
             x_post = lstm(x_post)
-        lstm = LSTM(hidden_dim)
-        x_pre = lstm(x_pre)
-        x_post = lstm(x_post)
 
-        x = concatenate([ x_pre, x_post ],
-                        name='embed_layer')
+            x = concatenate([ x_pre, x_post ],
+                            name='embed_layer')
 
-        #x = Dense(dff, activation='relu')(x)
-        x = Dense(vocab_size + 1)(x)
-        output = Activation('softmax', dtype='float32')(x)
+            #x = Dense(dff, activation='relu')(x)
+            x = Dense(vocab_size + 1)(x)
+            output = Activation('softmax', dtype='float32')(x)
 
-        self.model_ = Model(inputs=[ input_pre, input_post ],
-                            outputs=output)
-
+            self.model_ = Model(inputs=[ input_pre, input_post ],
+                                outputs=output)
+            opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
+                       amsgrad=False)
+            self.model_.compile(
+                loss='sparse_categorical_crossentropy', optimizer=opt,
+                metrics=['accuracy']
+            )
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
         self.embedding_dim_ = embedding_dim
@@ -425,23 +452,32 @@ class AttentionLanguageModel(LanguageModel):
         policy = mixed_precision.Policy('mixed_float16')
         mixed_precision.set_policy(policy)
 
-        input_ = Input(shape=(seq_len - 1,))
+        mirrored_strategy = tf.distribute.MirroredStrategy()
+        print('Number of devices: {}'.format(mirrored_strategy.num_replicas_in_sync))
+        with mirrored_strategy.scope():
+            input_ = Input(shape=(seq_len - 1,))
 
-        from transformer_layers import Encoder
-        self.encoder_ = Encoder(
-            n_hidden, hidden_dim, n_heads, dff,
-            vocab_size + 1, seq_len, dropout_rate,
-            name='embed_layer',
-        )
-        x = self.encoder_(input_, None)
+            from transformer_layers import Encoder
+            self.encoder_ = Encoder(
+                n_hidden, hidden_dim, n_heads, dff,
+                vocab_size + 1, seq_len, dropout_rate,
+                name='embed_layer',
+            )
+            x = self.encoder_(input_, None)
 
-        x = Reshape((hidden_dim * (seq_len - 1),))(x)
+            x = Reshape((hidden_dim * (seq_len - 1),))(x)
 
-        #x = Dense(dff, activation='relu')(x)
-        x = Dense(vocab_size + 1)(x)
-        output = Activation('softmax', dtype='float32')(x)
+            #x = Dense(dff, activation='relu')(x)
+            x = Dense(vocab_size + 1)(x)
+            output = Activation('softmax', dtype='float32')(x)
 
-        self.model_ = Model(inputs=input_, outputs=output)
+            self.model_ = Model(inputs=input_, outputs=output)
+            opt = Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999,
+                       amsgrad=False)
+            self.model_.compile(
+                loss='sparse_categorical_crossentropy', optimizer=opt,
+                metrics=['accuracy']
+            )
 
         self.seq_len_ = seq_len
         self.vocab_size_ = vocab_size
